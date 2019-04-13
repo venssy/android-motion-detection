@@ -51,7 +51,7 @@ public class MotionDetector {
                                 mHandler.post(new Runnable() {
                                     @Override
                                     public void run() {
-                                        motionDetectorCallback.onMotionDetected();
+                                        motionDetectorCallback.onMotionDetected(nextData.get(), nextWidth.get(), nextHeight.get());
                                     }
                                 });
                             }
