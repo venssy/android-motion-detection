@@ -2,6 +2,7 @@ package com.jjoe64.motiondetection.motiondetection;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.os.Handler;
 import android.util.Log;
@@ -9,11 +10,15 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static android.content.ContentValues.TAG;
+
 public class MotionDetector {
+
     class MotionDetectorThread extends Thread {
         private AtomicBoolean isRunning = new AtomicBoolean(true);
 
@@ -84,6 +89,7 @@ public class MotionDetector {
     private SurfaceHolder previewHolder;
     private Context mContext;
     private SurfaceView mSurface;
+    private SurfaceTexture mTexture;
 
     public MotionDetector(Context context, SurfaceView previewSurface) {
         detector = new AggregateLumaMotionDetection();
@@ -111,20 +117,6 @@ public class MotionDetector {
 
     public void setLeniency(int l) {
         detector.setLeniency(l);
-    }
-
-    public void onResume() {
-        if (checkCameraHardware()) {
-            mCamera = getCameraInstance();
-
-            worker = new MotionDetectorThread();
-            worker.start();
-
-            // configure preview
-            previewHolder = mSurface.getHolder();
-            previewHolder.addCallback(surfaceCallback);
-            previewHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-        }
     }
 
     public boolean checkCameraHardware() {
@@ -230,10 +222,41 @@ public class MotionDetector {
         return result;
     }
 
+    public void onResume() {
+        releaseCamera();
+        if (worker != null) worker.stopDetection();
+
+        if (checkCameraHardware()) {
+            mCamera = getCameraInstance();
+
+            worker = new MotionDetectorThread();
+            worker.start();
+
+            // configure preview
+            previewHolder = mSurface.getHolder();
+            previewHolder.addCallback(surfaceCallback);
+            previewHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        }
+    }
+
     public void onPause() {
         releaseCamera();
         if (previewHolder != null) previewHolder.removeCallback(surfaceCallback);
         if (worker != null) worker.stopDetection();
+
+        if(mTexture == null) mTexture = new SurfaceTexture(0);
+        try {
+            mCamera = getCameraInstance();
+
+            worker = new MotionDetectorThread();
+            worker.start();
+
+            mCamera.setPreviewTexture(mTexture);
+            mCamera.setPreviewCallback(previewCallback);
+            mCamera.startPreview();
+        } catch (IOException e) {
+            Log.e(TAG, "initiate camera failed, e: " + e.getMessage());
+        }
     }
 
     private void releaseCamera(){
